@@ -1,0 +1,247 @@
+---
+title: "Simulation"
+author: "Thida Chong"
+date: "2024-04-20"
+output: html_document
+---
+Power/Sample size:
+```{r}
+library(pwr)
+
+population_size <- 410740   # Total population
+confidence_level <- 0.95     # 95% Confidence Level
+margin_of_error <- 0.05      # 5% Margin of Error
+p <- 0.5                     # Proportion (0.5 for maximum sample size calculation)
+
+# Calculate Z-score for the given confidence level
+z_score <- qnorm(1 - (1 - confidence_level) / 2)
+
+# Calculate the sample size with finite population correction
+sample_size <- (population_size * z_score^2 * p * (1 - p)) / ((population_size - 1) * margin_of_error^2 + z_score^2 * p * (1 - p))
+```
+
+Data simulation: Effect
+```{r}
+library(data.table)
+library(DT)
+
+B <- 100  # Number of experiments
+n <- 384   # Number of participants in each experiment
+
+RNGversion("3.6.0")
+set.seed(seed = 4172)
+
+Experiment <- 1:B
+# Assuming a balanced design with equal numbers of treatment and control
+Group <- c(rep.int(1, floor(n*(3/4))), rep.int(0, ceiling(n*(1/4))))
+
+# Make sure the Group vector is repeated for each experiment
+Group <- rep(Group, times = B)
+
+sim.dat <- as.data.table(expand.grid(Experiment = Experiment, Group = Group))
+setorderv(x = sim.dat, cols = c("Experiment", "Group"), order = c(1, 1))
+
+# Assuming the following probabilities for the binary outcomes for each group
+prob_treatment <- list(Attention = 0.7, Interest = 0.6, Compelled = 0.6, Purchase = 0.5)
+prob_control <- list(Attention = 0.65, Interest = 0.55, Compelled = 0.45, Purchase = 0.4)
+
+# Simulate data for each group and outcome
+sim.dat[Group == 0, c("Captures_Attention", "Influences_Interest", "Compelled_To_Purchase", "Purchased_Item") := {
+  list(
+    rbinom(.N, 1, prob_control$Attention),
+    rbinom(.N, 1, prob_control$Interest),
+    rbinom(.N, 1, prob_control$Compelled),
+    rbinom(.N, 1, prob_control$Purchase)
+  )
+}]
+
+sim.dat[Group == 1, c("Captures_Attention", "Influences_Interest", "Compelled_To_Purchase", "Purchased_Item") := {
+  list(
+    rbinom(.N, 1, prob_treatment$Attention),
+    rbinom(.N, 1, prob_treatment$Interest),
+    rbinom(.N, 1, prob_treatment$Compelled),
+    rbinom(.N, 1, prob_treatment$Purchase)
+  )
+}]
+
+dim(sim.dat)
+
+```
+
+```{r}
+#create interactive table
+analyze.experiment <- function(the.dat) {
+  lapply(the.dat, mean)}
+
+exp.results <- sim.dat[, analyze.experiment(the.dat = .SD), by = "Experiment"]
+
+DT::datatable(data = round(x = exp.results[1:B, ], digits = 3), rownames = FALSE)
+```
+Captures_Attention
+```{r}
+treatment_group_att <- sim.dat[sim.dat$Group == 1, "Captures_Attention"]
+control_group_att <- sim.dat[sim.dat$Group == 0, "Captures_Attention"]
+t_att <- t.test(treatment_group_att, control_group_att)
+results_att <- data.frame(
+  Statistic = t_att$statistic,
+  P_Value = t_att$p.value,
+  Estimate = t_att$estimate,
+  Confidence_Interval_Lower = t_att$conf.int[1],
+  Confidence_Interval_Upper = t_att$conf.int[2],
+  Degrees_of_Freedom = t_att$parameter,
+  Method = t_att$method)
+```
+Influences_Interest
+```{r}
+treatment_group_int <- sim.dat[sim.dat$Group == 1, "Influences_Interest"]
+control_group_int <- sim.dat[sim.dat$Group == 0, "Influences_Interest"]
+t_int <- t.test(treatment_group_int, control_group_int)
+results_int <- data.frame(
+  Statistic = t_int$statistic,
+  P_Value = t_int$p.value,
+  Estimate = t_int$estimate,
+  Confidence_Interval_Lower = t_int$conf.int[1],
+  Confidence_Interval_Upper = t_int$conf.int[2],
+  Degrees_of_Freedom = t_int$parameter,
+  Method = t_int$method)
+```
+Compelled_To_Purchase
+```{r}
+treatment_group_compel <- sim.dat[sim.dat$Group == 1, "Compelled_To_Purchase"]
+control_group_compel <- sim.dat[sim.dat$Group == 0, "Compelled_To_Purchase"]
+t_compel <- t.test(treatment_group_compel, control_group_compel)
+results_compel<- data.frame(
+  Statistic = t_compel$statistic,
+  P_Value = t_compel$p.value,
+  Estimate = t_compel$estimate,
+  Confidence_Interval_Lower = t_compel$conf.int[1],
+  Confidence_Interval_Upper = t_compel$conf.int[2],
+  Degrees_of_Freedom = t_compel$parameter,
+  Method = t_compel$method)
+```
+Purchased
+```{r}
+treatment_group_purch <- sim.dat[sim.dat$Group == 1, "Compelled_To_Purchase"]
+control_group_purch <- sim.dat[sim.dat$Group == 0, "Compelled_To_Purchase"]
+t_purch<- t.test(treatment_group_purch, control_group_purch)
+results_purch<- data.frame(
+  Statistic = t_purch$statistic,
+  P_Value = t_purch$p.value,
+  Estimate = t_purch$estimate,
+  Confidence_Interval_Lower = t_purch$conf.int[1],
+  Confidence_Interval_Upper = t_purch$conf.int[2],
+  Degrees_of_Freedom = t_purch$parameter,
+  Method = t_purch$method)
+
+```
+Model
+```{r}
+model <- glm(Purchased_Item ~ ., data = sim.dat, family = binomial)
+```
+```{r}
+summary_model <- summary(model)
+coef_summary <- coef(summary_model)
+```
+
+Simulation data: No Effect
+```{r}
+B <- 100
+n <- 384
+
+RNGversion("3.6.0")
+set.seed(seed = 4172)
+
+Experiment <- 1:B
+Group <- c(rep.int(1, floor(n*.75)), rep.int(0, ceiling(n*.25)))
+Group <- rep(Group, times = B)
+
+sim.dat <- as.data.table(expand.grid(Experiment = Experiment, Group = Group))
+setorderv(x = sim.dat, cols = c("Experiment", "Group"), order = c(1, 1))
+
+prob_treatment <- list(Attention = 0.65, Interest = 0.5, Compelled = 0.4, Purchase = 0.4)
+prob_control <- list(Attention = 0.65, Interest = 0.55, Compelled = 0.45, Purchase = 0.4)
+
+sim.dat[Group == 0, c("Captures_Attention", "Influences_Interest", "Compelled_To_Purchase", "Purchased_Item") := {
+  list(
+    rbinom(.N, 1, prob_control$Attention),
+    rbinom(.N, 1, prob_control$Interest),
+    rbinom(.N, 1, prob_control$Compelled),
+    rbinom(.N, 1, prob_control$Purchase)
+  )
+}]
+
+sim.dat[Group == 1, c("Captures_Attention", "Influences_Interest", "Compelled_To_Purchase", "Purchased_Item") := {
+  list(
+    rbinom(.N, 1, prob_treatment$Attention),
+    rbinom(.N, 1, prob_treatment$Interest),
+    rbinom(.N, 1, prob_treatment$Compelled),
+    rbinom(.N, 1, prob_treatment$Purchase)
+  )
+}]
+dim(sim.dat)
+
+analyze.experiment <- function(the.dat) {
+  lapply(the.dat, mean)}
+exp.results <- sim.dat[, analyze.experiment(the.dat = .SD), by = "Experiment"]
+DT::datatable(data = round(x = exp.results[1:B, ], digits = 3), rownames = FALSE)
+
+treatment_att<- sim.dat[sim.dat$Group == 1, "Captures_Attention"]
+control_att<- sim.dat[sim.dat$Group == 0, "Captures_Attention"]
+t_att <- t.test(treatment_att, control_att)
+
+results_table <- data.frame(
+  Statistic = t_att$statistic,
+  P_Value = t_att$p.value,
+  Estimate = t_att$estimate,
+  Confidence_Interval_Lower = t_att$conf.int[1],
+  Confidence_Interval_Upper = t_att$conf.int[2],
+  Degrees_of_Freedom = t_att$parameter,
+  Method = t_att$method)
+
+
+treatment_int<- sim.dat[sim.dat$Group == 1, "Influences_Interest"]
+control_int<- sim.dat[sim.dat$Group == 0, "Influences_Interest"]
+t_int <- t.test(treatment_int, control_int)
+
+results_int <- data.frame(
+  tStatistic = t_int$statistic,
+  P_Value = t_int$p.value,
+  Estimate = t_int$estimate,
+  Confidence_Interval_Lower = t_int$conf.int[1],
+  Confidence_Interval_Upper = t_int$conf.int[2],
+  Degrees_of_Freedom = t_int$parameter,
+  Method = t_int$method
+)
+
+treatment_group_compel <- sim.dat[sim.dat$Group == 1, "Compelled_To_Purchase"]
+control_group_compel <- sim.dat[sim.dat$Group == 0, "Compelled_To_Purchase"]
+t_compel <- t.test(treatment_group_compel, control_group_compel)
+results_compel<- data.frame(
+  Statistic = t_compel$statistic,
+  P_Value = t_compel$p.value,
+  Estimate = t_compel$estimate,
+  Confidence_Interval_Lower = t_compel$conf.int[1],
+  Confidence_Interval_Upper = t_compel$conf.int[2],
+  Degrees_of_Freedom = t_compel$parameter,
+  Method = t_compel$method
+)
+
+treatment_group_purch <- sim.dat[sim.dat$Group == 1, "Purchased_Item"]
+control_group_purch <- sim.dat[sim.dat$Group == 0, "Purchased_Item"]
+t_purch<- t.test(treatment_group_purch, control_group_purch)
+results_purch<- data.frame(
+  Statistic = t_purch$statistic,
+  P_Value = t_purch$p.value,
+  Estimate = t_purch$estimate,
+  Confidence_Interval_Lower = t_purch$conf.int[1],
+  Confidence_Interval_Upper = t_purch$conf.int[2],
+  Degrees_of_Freedom = t_purch$parameter,
+  Method = t_purch$method
+)
+
+
+model <- glm(Purchased_Item ~ ., data = sim.dat, family = binomial)
+summary_model <- summary(model)
+coef_summary <- coef(summary_model)
+```
+
