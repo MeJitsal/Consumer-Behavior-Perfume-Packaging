@@ -54,7 +54,9 @@ base (built-in)
 
 **Install these packages using:** r
 Copy code
+```bash
 install.packages(c("pwr", "data.table", "DT"))
+```
 
 **Usage**
 Clone this repository.
